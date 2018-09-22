@@ -68,9 +68,58 @@
               transpose)
     board))
 
+(defn game-over?
+  [board]
+  (every?
+   (partial = board)
+   (map (fn [d] (move-dir d board))
+        [:up :down :left :right])))
+
+(defn solved?
+  [board]
+  (boolean (some (partial = 2048) (apply concat board))))
+
+(defn new-game
+  []
+  (-> (vec (repeat 4 (vec (repeat 4 0))))
+      inject
+      inject))
+
 (defn move
   [dir board]
-  (let [new (move-dir dir board)]
-    (if (= board new)
-      board
-      (inject new))))
+  (let [new (let [moved (move-dir dir board)]
+              (if (= board moved)
+                board
+                (inject moved)))]
+    [new (cond
+           (solved? new) :win
+           (game-over? new) :lose
+           :else :continue)]))
+
+(defn draw-board
+  [board]
+  (doseq [row board]
+    (doseq [c row]
+      (if (zero? c)
+        (print "    .")
+        (printf "%5d" c)))
+    (println "")))
+
+(defn play
+  [board]
+  (draw-board board)
+  (println "-----------------")
+  (let [cmd (read-line)
+        play' (fn [dir]
+                (let [[new state] (move dir board)]
+                  (condp = state
+                    :lose (println "You lose!")
+                    :win (println "You WIN!")
+                    (play new))))]
+    (condp = cmd
+      "u" (play' :up)
+      "d" (play' :down)
+      "l" (play' :left)
+      "r" (play' :right)
+      "q" (println "Bye!")
+      (play board))))
