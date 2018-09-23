@@ -1,4 +1,5 @@
-(ns clj2048.core)
+(ns clj2048.core
+  (:gen-class))
 
 (defn transpose
   [v]
@@ -8,7 +9,7 @@
   [v]
   (mapv (fn [x] (vec (reverse x))) v))
 
-(defn go
+(defn move-row
   [xs]
   (cond
     (empty? xs) []
@@ -16,8 +17,8 @@
     :else
     (let [[x y & rest] xs]
       (if (= x y)
-        (cons (+ x y) (go rest))
-        (cons x (go (cons y rest)))))))
+        (cons (+ x y) (move-row rest))
+        (cons x (move-row (cons y rest)))))))
 
 (defn move-left
   [xs]
@@ -28,7 +29,7 @@
        (->> row
             (filter (partial not= 0))
             seq
-            go
+            move-row
             pad
             vec)))
    xs))
@@ -40,7 +41,8 @@
 
 (defn inject
   [board]
-  (let [rows (select (fn [r] (not (empty? (filter zero? r)))) board)]
+  (let [rows (select
+              (fn [r] (not (empty? (filter zero? r)))) board)]
     (if (empty? rows)
       board
       (let [[y row] (rand-nth rows)
@@ -50,22 +52,29 @@
 
 (defn move-dir
   [dir board]
-  (condp = dir
-    :left (move-left board)
-    :right (-> board
-               mirror
-               move-left
-               mirror)
-    :up (-> board
-            transpose
-            move-left
-            transpose)
-    :down (-> board
-              transpose
-              mirror
-              move-left
-              mirror
-              transpose)
+  (case dir
+    :left
+    (move-left board)
+
+    :right
+    (-> board
+        mirror
+        move-left
+        mirror)
+    :up
+    (-> board
+        transpose
+        move-left
+        transpose)
+
+    :down
+    (-> board
+        transpose
+        mirror
+        move-left
+        mirror
+        transpose)
+
     board))
 
 (defn game-over?
@@ -98,28 +107,36 @@
 
 (defn draw-board
   [board]
-  (doseq [row board]
-    (doseq [c row]
-      (if (zero? c)
-        (print "    .")
-        (printf "%5d" c)))
-    (println "")))
+  (let [bar (fn [] (println "+----+----+----+----+"))]
+    (bar)
+    (doseq [row board]
+      (doseq [c row]
+        (if (zero? c)
+          (print "|    ")
+          (printf "|%4d" c)))
+      (println "|")
+      (bar))))
 
 (defn play
   [board]
   (draw-board board)
-  (println "-----------------")
+  (println "[u/d/l/r or q]")
   (let [cmd (read-line)
-        play' (fn [dir]
-                (let [[new state] (move dir board)]
-                  (condp = state
-                    :lose (println "You lose!")
-                    :win (println "You WIN!")
-                    (play new))))]
-    (condp = cmd
-      "u" (play' :up)
-      "d" (play' :down)
-      "l" (play' :left)
-      "r" (play' :right)
-      "q" (println "Bye!")
-      (play board))))
+        continue-with
+        (fn [dir]
+          (let [[new state] (move dir board)]
+            (case state
+              :lose #(println "You lose!")
+              :win #(println "You WIN!")
+              #(play new))))]
+    (case cmd
+      "u" (continue-with :up)
+      "d" (continue-with :down)
+      "l" (continue-with :left)
+      "r" (continue-with :right)
+      "q" #(println "Bye!")
+      #(play board))))
+
+(defn -main
+  [& _]
+  (trampoline play (new-game)))
